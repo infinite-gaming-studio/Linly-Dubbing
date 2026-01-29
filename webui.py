@@ -168,13 +168,12 @@ synthesize_video_interface = gr.Interface(
         gr.Slider(minimum=0, maximum=1, step=0.05, label='背景音乐音量', value=0.5),
         gr.Slider(minimum=0, maximum=1, step=0.05, label='视频音量', value=1.0),
         gr.Radio(['4320p', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'], label='分辨率', value='1080p'),
-
     ],
     outputs=[
         gr.Text(label='合成状态'), 
         gr.Video(label='合成视频')
     ],
-    **{FLAGGING_ARG: FLAGGING_VAL}
+    allow_flagging='never',
 )
 
 linly_talker_interface = gr.Interface(
@@ -188,6 +187,7 @@ linly_talker_interface = gr.Interface(
         gr.Text(label='合成状态'),
         gr.Video(label='合成视频')
     ],
+    allow_flagging='never',
 )
 
 my_theme = gr.themes.Soft()
