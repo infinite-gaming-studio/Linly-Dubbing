@@ -10,7 +10,6 @@ transformers==4.39.3
 translators
 edge-tts
 gradio<5.0.0
-gradio-client==1.2.7
 loguru
 yt-dlp
 scipy
@@ -43,6 +42,5 @@ conformer==0.3.2
 lightning==2.2.4
 requests
 dotenv
-loguru
 moviepy
 # ctranslate2==3.24.0

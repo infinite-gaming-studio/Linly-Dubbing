@@ -3,12 +3,15 @@ import gradio as gr
 # Gradio version compatibility helper
 def get_flagging_params():
     try:
+        import gradio as gr
         from packaging import version
-        if version.parse(gr.__version__) >= version.parse("5.0.0"):
+        v = version.parse(gr.__version__)
+        if v >= version.parse("5.0.0"):
             return {"flagging_mode": "never"}
-    except:
-        pass
-    return {"allow_flagging": "never"}
+        else:
+            return {"allow_flagging": "never"}
+    except Exception:
+        return {"allow_flagging": "never"}
 
 from tools.step000_video_downloader import download_from_url
 from tools.step010_demucs_vr import separate_all_audio_under_folder

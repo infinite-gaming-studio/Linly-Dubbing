@@ -99,18 +99,13 @@ if not conda_init_exists:
     print("Inserted CondaInit cell.")
 
 for cell in nb['cells']:
-    if cell.get('metadata', {}).get('id') == 'SystemDeps':
-        cell['source'] = system_deps_source
-        cell['execution_count'] = None
-        cell['outputs'] = []
-        found_system = True
-    elif cell.get('metadata', {}).get('id') == 'SmEIaKn1X1Hy':
+    if cell.get('metadata', {}).get('id') == 'Deps':
         cell['source'] = python_deps_source
         cell['execution_count'] = None
         cell['outputs'] = []
         found_python = True
 
-if found_system and found_python:
+if found_python:
     with open(nb_path, 'w', encoding='utf-8') as f:
         json.dump(nb, f, indent=2, ensure_ascii=False)
     print("Notebook patched successfully.")
