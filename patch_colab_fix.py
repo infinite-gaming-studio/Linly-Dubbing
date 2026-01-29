@@ -111,7 +111,9 @@ def set_process(text=None, step=None):
         print("✅ videotrans patch applied successfully.")
 
 def verify_dependencies():
-    """Verify critical dependencies."""
+    """Verify and fix critical dependencies."""
+    print("Fixing gradio-client version...")
+    os.system("pip install gradio-client==1.2.7")
     print("Verifying critical dependencies...")
     critical_packages = ['yt_dlp', 'loguru', 'torch', 'pynini']
     missing = []

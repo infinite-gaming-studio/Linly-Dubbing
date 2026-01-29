@@ -19,9 +19,23 @@ from tools.step050_synthesize_video import synthesize_all_video_under_folder
 from tools.do_everything import do_everything
 from tools.utils import SUPPORT_VOICE
 
+def wrap_do_everything(*args):
+    args = list(args)
+    # whisper_min_speakers at index 11, whisper_max_speakers at index 12
+    if args[11] == "Auto": args[11] = None
+    if args[12] == "Auto": args[12] = None
+    return do_everything(*args)
+
+def wrap_transcribe(*args):
+    args = list(args)
+    # min_speakers at index 6, max_speakers at index 7
+    if args[6] == "Auto": args[6] = None
+    if args[7] == "Auto": args[7] = None
+    return transcribe_all_audio_under_folder(*args)
+
 # 一键自动化界面
 full_auto_interface = gr.Interface(
-    fn=do_everything,
+    fn=wrap_do_everything,
     inputs=[
         gr.Textbox(label='视频输出文件夹', value='videos'),
         gr.Textbox(label='视频URL', placeholder='请输入Youtube或Bilibili的视频、播放列表或频道的URL', 
@@ -37,8 +51,8 @@ full_auto_interface = gr.Interface(
         gr.Radio(['large', 'medium', 'small', 'base', 'tiny'], label='WhisperX模型大小', value='large'),
         gr.Slider(minimum=1, maximum=128, step=1, label='批处理大小 Batch Size', value=32),
         gr.Checkbox(label='分离多个说话人', value=True),
-        gr.Radio([None, 1, 2, 3, 4, 5, 6, 7, 8, 9], label='最小说话人数', value=None),
-        gr.Radio([None, 1, 2, 3, 4, 5, 6, 7, 8, 9], label='最大说话人数', value=None),
+        gr.Radio(["Auto", 1, 2, 3, 4, 5, 6, 7, 8, 9], label='最小说话人数', value="Auto"),
+        gr.Radio(["Auto", 1, 2, 3, 4, 5, 6, 7, 8, 9], label='最大说话人数', value="Auto"),
 
         gr.Dropdown(['OpenAI', 'LLM', 'Google Translate', 'Bing Translate', 'Ernie'], label='翻译方式', value='LLM'),
         gr.Dropdown(['简体中文', '繁体中文', 'English', 'Cantonese', 'Japanese', 'Korean'], label='目标语言', value='简体中文'),
@@ -76,7 +90,7 @@ download_interface = gr.Interface(
     outputs=[
         gr.Textbox(label='下载状态'), 
         gr.Video(label='示例视频'), 
-        gr.Json(label='下载信息')
+        gr.Textbox(label='下载信息')
     ],
     **get_flagging_params(),
 )
@@ -101,7 +115,7 @@ demucs_interface = gr.Interface(
 
 # AI智能语音识别接口
 asr_inference = gr.Interface(
-    fn=transcribe_all_audio_under_folder,
+    fn=wrap_transcribe,
     inputs=[
         gr.Textbox(label='视频文件夹', value='videos'),
         gr.Dropdown(['WhisperX', 'FunASR'], label='ASR模型选择', value='WhisperX'),
@@ -109,12 +123,12 @@ asr_inference = gr.Interface(
         gr.Radio(['auto', 'cuda', 'cpu'], label='计算设备', value='auto'),
         gr.Slider(minimum=1, maximum=128, step=1, label='批处理大小 Batch Size', value=32),
         gr.Checkbox(label='分离多个说话人', value=True),
-        gr.Radio([None, 1, 2, 3, 4, 5, 6, 7, 8, 9], label='最小说话人数', value=None),
-        gr.Radio([None, 1, 2, 3, 4, 5, 6, 7, 8, 9], label='最大说话人数', value=None),
+        gr.Radio(["Auto", 1, 2, 3, 4, 5, 6, 7, 8, 9], label='最小说话人数', value="Auto"),
+        gr.Radio(["Auto", 1, 2, 3, 4, 5, 6, 7, 8, 9], label='最大说话人数', value="Auto"),
     ],
     outputs=[
         gr.Text(label='语音识别状态'), 
-        gr.Json(label='识别结果详情')
+        gr.Textbox(label='识别结果详情')
     ],
     **get_flagging_params(),
 )
@@ -129,8 +143,8 @@ translation_interface = gr.Interface(
     ],
     outputs=[
         gr.Text(label='翻译状态'), 
-        gr.Json(label='总结结果'), 
-        gr.Json(label='翻译结果')
+        gr.Textbox(label='总结结果'), 
+        gr.Textbox(label='翻译结果')
     ],
     **get_flagging_params(),
 )
@@ -209,8 +223,7 @@ app = gr.TabbedInterface(
 
 if __name__ == '__main__':
     app.launch(
-        server_name="127.0.0.1", 
+        server_name="0.0.0.0", 
         server_port=6006,
         share=True,
-        inbrowser=True
     )

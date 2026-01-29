@@ -10,6 +10,7 @@ transformers==4.39.3
 translators
 edge-tts
 gradio<5.0.0
+gradio-client==1.2.7
 loguru
 yt-dlp
 scipy
