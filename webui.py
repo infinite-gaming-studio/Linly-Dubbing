@@ -1,10 +1,19 @@
 import gradio as gr
-from packaging import version
 
-# Gradio compatibility helper
-GRADIO_V5 = version.parse(gr.__version__) >= version.parse("5.0.0")
-FLAGGING_ARG = "flagging_mode" if GRADIO_V5 else "allow_flagging"
-FLAGGING_VAL = "never" if GRADIO_V5 else "never"
+# Gradio version compatibility monkey-patch
+# Renames allow_flagging to flagging_mode for Gradio 5+ support
+_original_interface_init = gr.Interface.__init__
+def _patched_interface_init(self, *args, **kwargs):
+    if 'allow_flagging' in kwargs:
+        try:
+            from packaging import version
+            if version.parse(gr.__version__) >= version.parse("5.0.0"):
+                kwargs['flagging_mode'] = kwargs.pop('allow_flagging')
+        except ImportError:
+            if int(gr.__version__.split('.')[0]) >= 5:
+                kwargs['flagging_mode'] = kwargs.pop('allow_flagging')
+    _original_interface_init(self, *args, **kwargs)
+gr.Interface.__init__ = _patched_interface_init
 from tools.step000_video_downloader import download_from_url
 from tools.step010_demucs_vr import separate_all_audio_under_folder
 from tools.step020_asr import transcribe_all_audio_under_folder
@@ -54,7 +63,7 @@ full_auto_interface = gr.Interface(
         gr.Slider(minimum=1, maximum=10, step=1, label='Max Retries', value=3),
     ],
     outputs=[gr.Text(label='合成状态'), gr.Video(label='合成视频样例结果')],
-    **{FLAGGING_ARG: FLAGGING_VAL}
+    allow_flagging='never',
 )
 
 # 下载视频接口
@@ -73,7 +82,7 @@ download_interface = gr.Interface(
         gr.Video(label='示例视频'), 
         gr.Json(label='下载信息')
     ],
-    **{FLAGGING_ARG: FLAGGING_VAL}
+    allow_flagging='never',
 )
 
 # 人声分离接口
@@ -91,7 +100,7 @@ demucs_interface = gr.Interface(
         gr.Audio(label='人声音频'), 
         gr.Audio(label='伴奏音频')
     ],
-    **{FLAGGING_ARG: FLAGGING_VAL}
+    allow_flagging='never',
 )
 
 # AI智能语音识别接口
@@ -111,7 +120,7 @@ asr_inference = gr.Interface(
         gr.Text(label='语音识别状态'), 
         gr.Json(label='识别结果详情')
     ],
-    **{FLAGGING_ARG: FLAGGING_VAL}
+    allow_flagging='never',
 )
 
 # 翻译字幕接口
@@ -127,7 +136,7 @@ translation_interface = gr.Interface(
         gr.Json(label='总结结果'), 
         gr.Json(label='翻译结果')
     ],
-    **{FLAGGING_ARG: FLAGGING_VAL}
+    allow_flagging='never',
 )
 
 # AI语音合成接口
@@ -144,7 +153,7 @@ tts_interface = gr.Interface(
         gr.Audio(label='合成语音'), 
         gr.Audio(label='原始音频')
     ],
-    **{FLAGGING_ARG: FLAGGING_VAL}
+    allow_flagging='never',
 )
 
 # 视频合成接口
