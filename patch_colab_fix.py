@@ -130,40 +130,9 @@ def verify_dependencies():
         print("✅ All critical dependencies verified.")
 
 def patch_gradio_compatibility():
-    """Patch webui.py for Gradio 5+ compatibility using monkey-patching."""
-    webui_path = 'webui.py'
-    if os.path.exists(webui_path):
-        print(f"Patching {webui_path} for Gradio compatibility...")
-        with open(webui_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        if 'patched_interface_init' in content:
-            print("webui.py already patched for Gradio.")
-            return
-
-        import_line = "import gradio as gr"
-        patch_code = """import gradio as gr
-
-# Gradio version compatibility monkey-patch
-_original_init = gr.Interface.__init__
-def _patched_init(self, *args, **kwargs):
-    if 'allow_flagging' in kwargs:
-        try:
-            import gradio as gr_v
-            if int(gr_v.__version__.split('.')[0]) >= 5:
-                kwargs['flagging_mode'] = kwargs.pop('allow_flagging')
-        except: pass
-    _original_init(self, *args, **kwargs)
-gr.Interface.__init__ = _patched_init
-"""
-        content = content.replace(import_line, patch_code)
-        
-        # Ensure we don't have multiple allow_flagging issues if we previously patched it
-        content = content.replace("**{FLAGGING_ARG: FLAGGING_VAL}", "allow_flagging='never'")
-        
-        with open(webui_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        print("✅ Gradio compatibility monkey-patch applied to webui.py.")
+    """Gradio compatibility is now handled in webui.py directly."""
+    print("✅ Gradio compatibility handled in webui.py.")
+    pass
 
 def run_all_patches():
     print("Running all Colab patches...")

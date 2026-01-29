@@ -1,19 +1,15 @@
 import gradio as gr
 
-# Gradio version compatibility monkey-patch
-# Renames allow_flagging to flagging_mode for Gradio 5+ support
-_original_interface_init = gr.Interface.__init__
-def _patched_interface_init(self, *args, **kwargs):
-    if 'allow_flagging' in kwargs:
-        try:
-            from packaging import version
-            if version.parse(gr.__version__) >= version.parse("5.0.0"):
-                kwargs['flagging_mode'] = kwargs.pop('allow_flagging')
-        except ImportError:
-            if int(gr.__version__.split('.')[0]) >= 5:
-                kwargs['flagging_mode'] = kwargs.pop('allow_flagging')
-    _original_interface_init(self, *args, **kwargs)
-gr.Interface.__init__ = _patched_interface_init
+# Gradio version compatibility helper
+def get_flagging_params():
+    try:
+        from packaging import version
+        if version.parse(gr.__version__) >= version.parse("5.0.0"):
+            return {"flagging_mode": "never"}
+    except:
+        pass
+    return {"allow_flagging": "never"}
+
 from tools.step000_video_downloader import download_from_url
 from tools.step010_demucs_vr import separate_all_audio_under_folder
 from tools.step020_asr import transcribe_all_audio_under_folder
@@ -63,7 +59,7 @@ full_auto_interface = gr.Interface(
         gr.Slider(minimum=1, maximum=10, step=1, label='Max Retries', value=3),
     ],
     outputs=[gr.Text(label='合成状态'), gr.Video(label='合成视频样例结果')],
-    allow_flagging='never',
+    **get_flagging_params(),
 )
 
 # 下载视频接口
@@ -82,7 +78,7 @@ download_interface = gr.Interface(
         gr.Video(label='示例视频'), 
         gr.Json(label='下载信息')
     ],
-    allow_flagging='never',
+    **get_flagging_params(),
 )
 
 # 人声分离接口
@@ -100,7 +96,7 @@ demucs_interface = gr.Interface(
         gr.Audio(label='人声音频'), 
         gr.Audio(label='伴奏音频')
     ],
-    allow_flagging='never',
+    **get_flagging_params(),
 )
 
 # AI智能语音识别接口
@@ -120,7 +116,7 @@ asr_inference = gr.Interface(
         gr.Text(label='语音识别状态'), 
         gr.Json(label='识别结果详情')
     ],
-    allow_flagging='never',
+    **get_flagging_params(),
 )
 
 # 翻译字幕接口
@@ -136,7 +132,7 @@ translation_interface = gr.Interface(
         gr.Json(label='总结结果'), 
         gr.Json(label='翻译结果')
     ],
-    allow_flagging='never',
+    **get_flagging_params(),
 )
 
 # AI语音合成接口
@@ -153,7 +149,7 @@ tts_interface = gr.Interface(
         gr.Audio(label='合成语音'), 
         gr.Audio(label='原始音频')
     ],
-    allow_flagging='never',
+    **get_flagging_params(),
 )
 
 # 视频合成接口
@@ -173,21 +169,21 @@ synthesize_video_interface = gr.Interface(
         gr.Text(label='合成状态'), 
         gr.Video(label='合成视频')
     ],
-    allow_flagging='never',
+    **get_flagging_params(),
 )
 
 linly_talker_interface = gr.Interface(
-    fn=lambda: None,
+    fn=lambda: (None, None, None),
     inputs=[
         gr.Textbox(label='视频文件夹', value='videos'),
         gr.Dropdown(['Wav2Lip', 'Wav2Lipv2','SadTalker'], label='AI配音方式', value='Wav2Lip'),
     ],      
     outputs=[
-        gr.Markdown(value="施工中，请静候佳音 可参考 [https://github.com/Kedreamix/Linly-Talker](https://github.com/Kedreamix/Linly-Talker)"),
+        gr.HTML(value="施工中，请静候佳音 可参考 <a href='https://github.com/Kedreamix/Linly-Talker'>https://github.com/Kedreamix/Linly-Talker</a>"),
         gr.Text(label='合成状态'),
         gr.Video(label='合成视频')
     ],
-    allow_flagging='never',
+    **get_flagging_params(),
 )
 
 my_theme = gr.themes.Soft()
