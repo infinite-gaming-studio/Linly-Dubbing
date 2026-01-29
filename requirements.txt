@@ -5,7 +5,7 @@
 # torchvision
 # torchaudio
 
-numpy==1.26.3
+numpy<2.0.0
 transformers==4.39.3
 translators
 edge-tts
