@@ -1,151 +1,173 @@
 
 import json
 import os
+import site
+import sys
 
+# Path to the notebook itself (in case we want to patch it from within, though usually we run this from a cell)
 nb_path = "colab_webui.ipynb"
 
-def patch_notebook():
-    if not os.path.exists(nb_path):
-        print(f"Error: {nb_path} not found.")
-        return
+def patch_tts_compatibility():
+    """Patch TTS submodule for Python 3.12 support."""
+    setup_path = 'submodules/TTS/setup.py'
+    if os.path.exists(setup_path):
+        print(f"Patching {setup_path} for Python 3.12 compatibility...")
+        with open(setup_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Replace the version check
+        old_check = 'if Version(python_version) < Version("3.9") or Version(python_version) >= Version("3.12"):'
+        new_check = '# if Version(python_version) < Version("3.9") or Version(python_version) >= Version("3.12"):'
+        content = content.replace(old_check, new_check)
+        
+        old_raise = '    raise RuntimeError("TTS requires python >= 3.9 and < 3.12 "'
+        new_raise = '#     raise RuntimeError("TTS requires python >= 3.9 and < 3.12 "'
+        content = content.replace(old_raise, new_raise)
+        
+        old_req = 'python_requires=">=3.9.0, <3.12",'
+        new_req = 'python_requires=">=3.9.0, <3.13",'
+        content = content.replace(old_req, new_req)
+        
+        with open(setup_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print("✅ TTS patched.")
+    else:
+        print("⚠️ TTS setup.py not found at submodules/TTS/setup.py. Skipping.")
 
-    with open(nb_path, "r", encoding="utf-8") as f:
-        nb = json.load(f)
+def patch_matplotlib_backend():
+    """Fix Matplotlib backend issue in Colab."""
+    print("Patching Matplotlib backend for headless environment...")
+    # We can set this globally in the current process and also suggest it for the notebook
+    os.environ['MPLBACKEND'] = 'Agg'
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        print("✅ Matplotlib backend set to 'Agg'.")
+    except Exception as e:
+        print(f"⚠️ Failed to set Matplotlib backend: {e}")
 
-    # 1. Update dependency installation (existing logic)
-    found_torch_patch = False
-    for cell in nb["cells"]:
-        if cell["cell_type"] == "code":
-            source = cell["source"]
-            new_source = []
-            modified = False
-            for line in source:
-                new_source.append(line)
-                if "!uv pip install --system --force-reinstall \"numpy<2.0.0\" \"setuptools\"" in line:
-                    if not any("torch==2.3.1" in l for l in source): 
-                        new_source.append("\n")
-                        new_source.append("# [CRITICAL] 强制重装 Torch 全家桶以确保版本兼容 (Fix: torch.library missing register_fake)\n")
-                        new_source.append("!uv pip install --system --force-reinstall torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1\n")
-                        modified = True
-                        found_torch_patch = True
+def patch_videotrans_tools():
+    """Patch videotrans library for Colab (Headless Support)."""
+    # Find videotrans location in site-packages
+    site_packages = site.getsitepackages()
+    target_file = None
+    
+    for sp in site_packages:
+        possible_path = os.path.join(sp, 'videotrans', 'util', 'tools.py')
+        if os.path.exists(possible_path):
+            target_file = possible_path
+            break
             
-            if modified:
-                cell["source"] = new_source
+    if not target_file:
+        # Fallback: try to import and get file
+        try:
+            import videotrans.util.tools
+            target_file = videotrans.util.tools.__file__
+        except ImportError:
+            print("⚠️ Could not find videotrans to patch. It might not be installed yet.")
+            return
 
-    # 2. Inject Videotrans UI Patch Cell
-    patch_cell_id = "PatchVideotransUI"
+    print(f"Patching {target_file} for headless UI support...")
     
-    # Check if patch cell already exists
-    patch_exists = any(c.get("metadata", {}).get("id") == patch_cell_id for c in nb["cells"])
-    
-    if not patch_exists:
-        patch_source = [
-            "# [Step 1.6] Patch videotrans library for Colab (Headless Support)\n",
-            "# Fixes IndexError: list index out of range in set_process by mocking GUI components\n",
-            "import os\n",
-            "import site\n",
-            "\n",
-            "def patch_videotrans_tools():\n",
-            "    # Find videotrans location in site-packages\n",
-            "    site_packages = site.getsitepackages()\n",
-            "    target_file = None\n",
-            "    \n",
-            "    for sp in site_packages:\n",
-            "        possible_path = os.path.join(sp, 'videotrans', 'util', 'tools.py')\n",
-            "        if os.path.exists(possible_path):\n",
-            "            target_file = possible_path\n",
-            "            break\n",
-            "            \n",
-            "    if not target_file:\n",
-            "        # Fallback: try to import and get file\n",
-            "        try:\n",
-            "            import videotrans.util.tools\n",
-            "            target_file = videotrans.util.tools.__file__\n",
-            "        except ImportError:\n",
-            "            print(\"Could not find videotrans to patch. It might not be installed yet.\")\n",
-            "            return\n",
-            "\n",
-            "    print(f\"Patching {target_file}...\")\n",
-            "    \n",
-            "    with open(target_file, 'r', encoding='utf-8') as f:\n",
-            "        content = f.read()\n",
-            "\n",
-            "    patch_code = \"\"\"\n",
-            "\n",
-            "# --- COLAB PATCH START ---\n",
-            "# Mock UI components for headless execution\n",
-            "class DummyUI:\n",
-            "    def error(self, msg): print(f\"[UI Error] {msg}\")\n",
-            "    def info(self, msg): print(f\"[UI Info] {msg}\")\n",
-            "    def warning(self, msg): print(f\"[UI Warning] {msg}\")\n",
-            "    def log(self, msg): print(f\"[UI Log] {msg}\")\n",
-            "    def setText(self, text): print(f\"[UI Status] {text}\")\n",
-            "    def set_value(self, val): pass\n",
-            "\n",
-            "# Ensure log_ui_ui exists and has elements\n",
-            "if 'log_ui_ui' not in globals() or not log_ui_ui:\n",
-            "    log_ui_ui = [DummyUI() for _ in range(5)]\n",
-            "\n",
-            "# Override set_process to be safe\n",
-            "def set_process(text=None, step=None):\n",
-            "    try:\n",
-            "        if text:\n",
-            "            print(f\"[Processing] {text}\")\n",
-            "            if 'log_ui_ui' in globals() and len(log_ui_ui) > 0:\n",
-            "                log_ui_ui[0].setText(text)\n",
-            "        if step is not None:\n",
-            "             if 'log_ui_ui' in globals() and len(log_ui_ui) > 1:\n",
-            "                log_ui_ui[1].set_value(step)\n",
-            "    except Exception as e:\n",
-            "        print(f\"Error in set_process: {e}\")\n",
-            "# --- COLAB PATCH END ---\n",
-            "\"\"\"\n",
-            "    \n",
-            "    if \"# --- COLAB PATCH START ---\" in content:\n",
-            "        print(\"File already patched.\")\n",
-            "    else:\n",
-            "        with open(target_file, 'a', encoding='utf-8') as f:\n",
-            "            f.write(patch_code)\n",
-            "        print(\"Patch applied successfully.\")\n",
-            "\n",
-            "try:\n",
-            "    patch_videotrans_tools()\n",
-            "except Exception as e:\n",
-            "    print(f\"An error occurred while patching: {e}\")\n"
-        ]
-        
-        new_cell = {
-            "cell_type": "code",
-            "execution_count": None,
-            "metadata": {
-                "id": patch_cell_id
-            },
-            "outputs": [],
-            "source": patch_source
-        }
-        
-        # Insert after Step 1.4 (Dependency Install)
-        # Find index of cell with id 'SmEIaKn1X1Hy'
-        insert_idx = -1
-        for i, cell in enumerate(nb["cells"]):
-            if cell.get("metadata", {}).get("id") == "SmEIaKn1X1Hy":
-                insert_idx = i
-                break
-        
-        if insert_idx != -1:
-            nb["cells"].insert(insert_idx + 1, new_cell)
-            print(" injected patch cell after requirements install.")
-        else:
-            nb["cells"].append(new_cell)
-            print(" appended patch cell to end.")
+    with open(target_file, 'r', encoding='utf-8') as f:
+        content = f.read()
 
-    with open(nb_path, "w", encoding="utf-8") as f:
-        json.dump(nb, f, indent=2, ensure_ascii=False)
+    patch_code = """
+
+# --- COLAB PATCH START ---
+# Mock UI components for headless execution
+class DummyUI:
+    def error(self, msg): print(f"[UI Error] {msg}")
+    def info(self, msg): print(f"[UI Info] {msg}")
+    def warning(self, msg): print(f"[UI Warning] {msg}")
+    def log(self, msg): print(f"[UI Log] {msg}")
+    def setText(self, text): print(f"[UI Status] {text}")
+    def set_value(self, val): pass
+
+# Ensure log_ui_ui exists and has elements
+if 'log_ui_ui' not in globals() or not log_ui_ui:
+    log_ui_ui = [DummyUI() for _ in range(5)]
+
+# Override set_process to be safe
+def set_process(text=None, step=None):
+    try:
+        if text:
+            print(f"[Processing] {text}")
+            if 'log_ui_ui' in globals() and len(log_ui_ui) > 0:
+                log_ui_ui[0].setText(text)
+        if step is not None:
+             if 'log_ui_ui' in globals() and len(log_ui_ui) > 1:
+                log_ui_ui[1].set_value(step)
+    except Exception as e:
+        print(f"Error in set_process: {e}")
+# --- COLAB PATCH END ---
+"""
     
-    if found_torch_patch:
-        print("Updated existing cells with torch pinning.")
+    if "# --- COLAB PATCH START ---" in content:
+        print("File already patched.")
+    else:
+        with open(target_file, 'a', encoding='utf-8') as f:
+            f.write(patch_code)
+        print("✅ videotrans patch applied successfully.")
+
+def verify_dependencies():
+    """Verify critical dependencies."""
+    print("Verifying critical dependencies...")
+    critical_packages = ['yt_dlp', 'loguru', 'torch', 'pynini']
+    missing = []
+    for pkg in critical_packages:
+        try:
+            __import__(pkg)
+            print(f"✅ {pkg} is installed.")
+        except ImportError:
+            missing.append(pkg)
+            print(f"❌ {pkg} is MISSING.")
     
-    print("Notebook update complete.")
+    if missing:
+        print(f"Error: Missing packages: {missing}")
+        # We don't exit here, let the user decide or try to install manually
+    else:
+        print("✅ All critical dependencies verified.")
+
+def patch_gradio_compatibility():
+    """Patch webui.py for Gradio 5+ compatibility if needed."""
+    webui_path = 'webui.py'
+    if os.path.exists(webui_path):
+        print(f"Patching {webui_path} for Gradio compatibility...")
+        with open(webui_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        if 'FLAGGING_ARG' in content:
+            print("webui.py already patched for Gradio.")
+            return
+
+        import_line = "import gradio as gr"
+        patch_helper = """import gradio as gr
+try:
+    from packaging import version
+    GRADIO_V5 = version.parse(gr.__version__) >= version.parse("5.0.0")
+except ImportError:
+    # Basic fallback if packaging is not installed
+    GRADIO_V5 = int(gr.__version__.split('.')[0]) >= 5
+
+FLAGGING_ARG = "flagging_mode" if GRADIO_V5 else "allow_flagging"
+FLAGGING_VAL = "never" if GRADIO_V5 else "never"
+"""
+        content = content.replace(import_line, patch_helper)
+        content = content.replace("allow_flagging='never'", "**{FLAGGING_ARG: FLAGGING_VAL}")
+        
+        with open(webui_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print("✅ Gradio compatibility patched in webui.py.")
+
+def run_all_patches():
+    print("Running all Colab patches...")
+    patch_gradio_compatibility()
+    patch_tts_compatibility()
+    patch_matplotlib_backend()
+    patch_videotrans_tools()
+    verify_dependencies()
+    print("All patches completed.")
 
 if __name__ == "__main__":
-    patch_notebook()
+    run_all_patches()
