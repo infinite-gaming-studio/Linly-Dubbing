@@ -16,6 +16,7 @@
 | **GPU 检测** | ❌ | ✅ |
 | **缓存优化** | 基础 | 智能缓存 |
 | **用户反馈** | 简单 | 详细进度显示 |
+| **依赖安装** | 基础 | 按依赖图顺序安装 |
 
 ## 🚀 使用步骤
 
@@ -37,112 +38,53 @@
 
 **预计时间**: 1-2 分钟
 
-#### Cell 2: 安装依赖
-- ✅ 安装系统依赖 (build-essential, libfst-dev)
-- ✅ 安装 PyTorch 2.3.1
+#### Cell 2: 安装依赖 (改进版)
+- ✅ 安装系统依赖
+- ✅ **先安装所有子模块的基础依赖** (新增)
 - ✅ 应用兼容性补丁
-- ✅ 安装 pynini 和所有项目依赖
-- ✅ 验证关键包
+- ✅ 优雅处理pynini失败
+- ✅ 按正确顺序安装子模块
 
 **预计时间**: 3-5 分钟
 
+**关键改进**:
+- 安装顺序：系统依赖 → 子模块基础依赖 → 核心requirements → 子模块
+- 自动安装 `dora-search` (demucs依赖)
+- pynini 失败不会阻塞安装
+
 #### Cell 3: 下载 AI 模型
-- ✅ 下载 wav2vec2 模型 (360 MB)
-- ✅ 下载 HuggingFace 模型:
-  - XTTS-v2 (~2 GB)
-  - Qwen1.5-4B-Chat (~8 GB)
-  - faster-whisper-large-v3 (~3 GB)
+- ✅ 下载 wav2vec2 模型
+- ✅ 下载 HuggingFace 模型 (带重试机制)
 
-**预计时间**: 10-15 分钟（取决于网络速度）
+**预计时间**: 10-15 分钟
 
-**总下载量**: ~15 GB
-
-💡 **优化提示**: 模型会缓存在工作目录，再次运行时会跳过已下载的文件。
-
-#### Cell 4: 启动 WebUI
+#### Cell 4: 启动 WebUI (增强版)
 - ✅ 配置环境变量
+- ✅ **验证关键模块导入** (新增)
 - ✅ 启动 Gradio WebUI
-- ✅ 生成公共访问链接
 
 **预计时间**: 1 分钟
 
-成功启动后，会显示类似以下的公共 URL:
+## 🐛 常见问题及解决方案
+
+### Q: `ModuleNotFoundError: No module named 'dora'`
+**A**: 这是 demucs 的依赖问题。最新版本的notebook已经自动安装 `dora-search`。  
+如果仍然出现，手动执行：
+```bash
+!pip install dora-search
 ```
-Running on public URL: https://xxxxx.gradio.live
-```
-
-## 📝 配置说明
-
-### 默认配置
-
-默认使用以下免费服务:
-- **翻译**: Qwen1.5-4B-Chat (本地)
-- **TTS**: Edge TTS / XTTS-v2
-- **ASR**: WhisperX / FunASR
-
-### 可选配置
-
-#### 使用 OpenAI API (推荐更好的翻译质量)
-
-1. 在 Cell 4 执行前，添加额外的 cell:
-```python
-import os
-# 编辑 .env 文件
-with open('.env', 'a') as f:
-    f.write('\nOPENAI_API_KEY=sk-your-api-key-here\n')
-    f.write('MODEL_NAME=gpt-3.5-turbo\n')
-```
-
-2. 然后继续执行 Cell 4
-
-#### 启用说话人分离
-
-如果需要使用 pyannote 进行说话人分离:
-
-1. 在 [HuggingFace](https://huggingface.co/settings/tokens) 获取 API token
-2. 申请访问 [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
-3. 在 Cell 4 中取消注释以下行:
-```python
-os.environ['HF_TOKEN'] = 'your_huggingface_token_here'
-```
-
-## ⚡ 性能优化建议
-
-### 1. 利用双 GPU
-
-Linly-Dubbing 会自动检测并使用可用的 GPU。双 T4 可以:
-- 并行处理音视频分离
-- 加速模型推理
-
-### 2. 重用缓存
-
-Kaggle notebook 的工作目录在会话间会被清理，但你可以:
-- 将模型保存到 Kaggle Dataset
-- 从 Dataset 加载模型而非重新下载
-
-修改 Cell 3，添加 Dataset 挂载代码:
-```python
-# 假设你已创建了一个包含模型的 Kaggle Dataset
-from kaggle_datasets import KaggleDatasets
-dataset_path = KaggleDatasets().get_gcs_path('your-username/linly-dubbing-models')
-!ln -s {dataset_path}/models /kaggle/working/Linly-Dubbing/models
-```
-
-### 3. 减少内存占用
-
-如果遇到内存不足:
-- 在 WebUI 中处理较短的视频片段
-- 使用较小的 batch size
-- 关闭不需要的功能（如唇形同步）
-
-## 🐛 常见问题
 
 ### Q: pynini 安装失败
-**A**: 确保 Cell 2 中系统依赖安装成功。如果失败，手动执行:
-```bash
-!apt-get install -y build-essential libfst-dev
-!pip install pynini==2.1.5
+**A**: pynini 不是核心依赖，失败不影响主要功能。notebook会显示警告但继续执行：
 ```
+⚠️ pynini installation failed (non-critical, continuing...)
+```
+
+### Q: TTS 子模块安装失败
+**A**: notebook会自动重试，首先尝试完整安装，失败后使用 `--no-deps`:
+1. 第一次尝试: `pip install -e submodules/TTS`
+2. 失败后重试: `pip install -e submodules/TTS --no-deps`
+3. 使用 `sys.path` 作为后备方案
 
 ### Q: GPU 未检测到
 **A**: 
@@ -150,17 +92,25 @@ dataset_path = KaggleDatasets().get_gcs_path('your-username/linly-dubbing-models
 2. 重启 notebook
 3. 确认配额未用尽
 
-### Q: 模型下载太慢
+### Q: 模型下载太慢或超时
 **A**: 
-1. 使用 Kaggle Dataset 预缓存模型
-2. 考虑分批下载大模型
-3. 检查 Internet 是否启用
+1. 下载脚本已包含重试机制（最多5次）
+2. 如果持续失败，检查 Internet 是否启用
+3. 可以使用 Kaggle Dataset 预缓存模型
 
 ### Q: WebUI 无法访问
 **A**:
 1. 检查防火墙设置
 2. 确认 Gradio 链接未过期（默认72小时）
 3. 重新运行 Cell 4
+
+### Q: Import Error 在启动时
+**A**: notebook 会在启动前验证所有关键导入：
+```python
+from tools.step000_video_downloader import download_from_url
+from tools.step010_demucs_vr import separate_all_audio_under_folder
+```
+如果失败，会自动尝试安装缺失的依赖包。
 
 ## 📊 资源使用预估
 
@@ -170,6 +120,33 @@ dataset_path = KaggleDatasets().get_gcs_path('your-username/linly-dubbing-models
 | **内存 (RAM)** | ~10-15 GB | 运行时 |
 | **GPU 内存** | ~8-12 GB | 每个 T4 |
 | **网络流量** | ~15 GB | 首次下载 |
+
+## 🔧 高级故障排除
+
+### 依赖安装顺序
+
+notebook 使用以下顺序安装依赖，以确保兼容性：
+
+1. **系统依赖** → 2. **子模块基础依赖** → 3. **核心requirements** → 4. **子模块可编辑安装**
+
+这个顺序很重要！如果手动修改，请保持此顺序。
+
+### 手动修复依赖问题
+
+如果自动安装失败，可以手动执行：
+
+```python
+# 安装所有基础依赖
+!pip install dora-search diffq einops julius lameenc tqdm treetable
+!pip install cython scipy soundfile librosa scikit-learn
+!pip install transformers encodec unidecode num2words
+
+# 然后安装子模块
+!pip install -e submodules/demucs
+!pip install -e submodules/whisper
+!pip install -e submodules/whisperX
+!pip install -e submodules/TTS
+```
 
 ## 🎓 下一步
 
@@ -188,3 +165,4 @@ dataset_path = KaggleDatasets().get_gcs_path('your-username/linly-dubbing-models
 ---
 
 **祝使用愉快！🎉**
+
